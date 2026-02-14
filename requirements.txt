@@ -1,0 +1,24 @@
+# 数据收集
+yfinance
+FinMind
+twstock
+
+# 数据处理
+pandas
+numpy
+
+# 回测
+backtrader
+
+# 可视化
+matplotlib
+plotly
+
+# Dashboard
+streamlit
+
+# 配置
+pyyaml
+
+# 通知
+requests
