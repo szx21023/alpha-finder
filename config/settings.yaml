@@ -1,0 +1,27 @@
+# Alpha Finder 配置文件
+
+# 台股筛选条件
+tw_stock:
+  screener:
+    roe_min: 15          # ROE 最低门槛 (%)
+    pe_max: 20           # 本益比上限
+    dividend_yield_min: 3 # 最低殖利率 (%)
+    revenue_growth_min: 5 # 营收年增率最低门槛 (%)
+    consecutive_dividend_years: 5  # 连续配息年数
+
+# 美股筛选条件
+us_stock:
+  screener:
+    roe_min: 15
+    pe_max: 25
+    dividend_yield_min: 2
+    revenue_growth_min: 10
+    consecutive_dividend_years: 5
+
+# 回测设置
+backtest:
+  initial_capital: 1000000  # 初始资金
+  commission: 0.001425      # 手续费率
+  tax: 0.003                # 交易税（台股）
+  start_date: "2020-01-01"
+  end_date: "2025-12-31"
