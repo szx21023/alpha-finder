@@ -1,27 +1,47 @@
+from __future__ import annotations
+
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 
 from src.data import get_tw_financials, get_us_financials
 from src.screener.universe import get_tw_universe, get_sp500_tickers
 
+MAX_WORKERS = 8
+
 
 def _passes_filter(financials: dict, criteria: dict) -> bool:
-    """檢查單檔股票是否通過所有篩選條件。資料為 None 時跳過該條件。"""
+    """檢查單檔股票是否通過所有篩選條件。門檻或資料為 None 時跳過該條件，但至少須通過一項檢查。"""
     checks = [
         ("pe", "pe_max", lambda v, t: v <= t),
         ("roe", "roe_min", lambda v, t: v >= t),
         ("dividend_yield", "dividend_yield_min", lambda v, t: v >= t),
         ("revenue_growth", "revenue_growth_min", lambda v, t: v >= t),
     ]
+    any_checked = False
     for field, config_key, compare in checks:
         threshold = criteria.get(config_key)
         value = financials.get(field)
         if threshold is None or value is None:
             continue
+        any_checked = True
         if not compare(value, threshold):
             return False
-    return True
+    return any_checked
+
+
+def _fetch_one(ticker: str, get_financials, criteria: dict) -> tuple[dict | None, str | None]:
+    """抓取單檔股票基本面並判斷是否通過篩選。回傳 (result_or_None, error_or_None)。"""
+    try:
+        financials = get_financials(ticker)
+    except Exception as e:
+        return (None, f"{ticker}: {e}")
+
+    if _passes_filter(financials, criteria):
+        return ({**financials, "ticker": ticker}, None)
+    return (None, None)
 
 
 def screen(market: str, config: dict) -> pd.DataFrame:
@@ -47,22 +67,39 @@ def screen(market: str, config: dict) -> pd.DataFrame:
 
     total = len(tickers)
     results = []
+    errors = []
+    done_count = 0
+    lock = threading.Lock()
 
-    for i, ticker in enumerate(tickers, 1):
-        sys.stdout.write(f"\r正在篩選{label}... ({i}/{total})")
-        sys.stdout.flush()
+    def on_complete(future):
+        nonlocal done_count
+        with lock:
+            done_count += 1
+            sys.stdout.write(f"\r正在篩選{label}... ({done_count}/{total})")
+            sys.stdout.flush()
 
-        try:
-            financials = get_financials(ticker)
-        except Exception:
-            continue
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {}
+        for ticker in tickers:
+            fut = executor.submit(_fetch_one, ticker, get_financials, criteria)
+            fut.add_done_callback(on_complete)
+            futures[fut] = ticker
 
-        if _passes_filter(financials, criteria):
-            financials["ticker"] = ticker
-            results.append(financials)
+        for fut in as_completed(futures):
+            row, error = fut.result()
+            if error is not None:
+                errors.append(error)
+            elif row is not None:
+                results.append(row)
 
-    # 換行，結束進度顯示
     print()
+
+    if errors:
+        print(f"\n[警告] {len(errors)}/{total} 檔股票數據取得失敗")
+        for msg in errors[:5]:
+            print(f"  {msg}")
+        if len(errors) > 5:
+            print(f"  ... 及其他 {len(errors) - 5} 檔")
 
     if not results:
         print(f"\n沒有符合條件的{label}標的。")

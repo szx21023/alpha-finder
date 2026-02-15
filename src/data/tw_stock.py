@@ -88,8 +88,8 @@ def get_financials(stock_id: str) -> dict:
                 latest_eq = equity.sort_values("date").iloc[-1]["value"]
                 if latest_eq and latest_eq > 0:
                     roe = round(latest_ni / latest_eq * 100, 2)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"無法計算 {stock_id} 的 ROE: {e}")
 
     return {
         "name": name,

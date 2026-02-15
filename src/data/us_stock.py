@@ -42,8 +42,8 @@ def get_financials(ticker: str) -> dict:
         "pe": info.get("trailingPE"),
         "forward_pe": info.get("forwardPE"),
         "pb": info.get("priceToBook"),
-        "roe": info.get("returnOnEquity"),
-        "dividend_yield": info.get("dividendYield"),
-        "revenue_growth": info.get("revenueGrowth"),
+        "roe": round(info["returnOnEquity"] * 100, 2) if info.get("returnOnEquity") is not None else None,
+        "dividend_yield": round(info["dividendYield"] * 100, 2) if info.get("dividendYield") is not None else None,
+        "revenue_growth": round(info["revenueGrowth"] * 100, 2) if info.get("revenueGrowth") is not None else None,
         "market_cap": info.get("marketCap"),
     }
