@@ -75,10 +75,27 @@ def get_financials(stock_id: str) -> dict:
             if prev_year_rev and prev_year_rev > 0:
                 revenue_growth = round((latest_rev - prev_year_rev) / prev_year_rev * 100, 2)
 
+    # 取得 ROE（從財報計算）
+    roe = None
+    try:
+        fs = dl.taiwan_stock_financial_statement(stock_id=stock_id, start_date="2023-01-01")
+        bs = dl.taiwan_stock_balance_sheet(stock_id=stock_id, start_date="2023-01-01")
+        if not fs.empty and not bs.empty:
+            net_income = fs[fs["type"] == "EquityAttributableToOwnersOfParent"]
+            equity = bs[bs["type"] == "EquityAttributableToOwnersOfParent"]
+            if not net_income.empty and not equity.empty:
+                latest_ni = net_income.sort_values("date").iloc[-1]["value"]
+                latest_eq = equity.sort_values("date").iloc[-1]["value"]
+                if latest_eq and latest_eq > 0:
+                    roe = round(latest_ni / latest_eq * 100, 2)
+    except Exception:
+        pass
+
     return {
         "name": name,
         "pe": pe,
         "pb": pb,
+        "roe": roe,
         "dividend_yield": dividend_yield,
         "revenue_growth": revenue_growth,
     }
