@@ -1,6 +1,7 @@
 import argparse
 import yaml
 from src.data import get_us_price, get_us_financials, get_tw_price, get_tw_financials
+from src.screener import screen
 
 
 def load_config(path="config/settings.yaml"):
@@ -8,18 +9,13 @@ def load_config(path="config/settings.yaml"):
         return yaml.safe_load(f)
 
 
-def parse_args():
+def cmd_show(args):
+    """個股查詢命令。"""
     config = load_config()
-    parser = argparse.ArgumentParser(description="Alpha Finder - 股票数据收集工具")
-    parser.add_argument("--ticker", required=True, help="股票代码（例如 AAPL、2330）")
-    parser.add_argument("--market", choices=["us", "tw"], required=True, help="市场：us（美股）或 tw（台股）")
-    parser.add_argument("--start", default=config["backtest"]["start_date"], help="开始日期（YYYY-MM-DD）")
-    parser.add_argument("--end", default=config["backtest"]["end_date"], help="结束日期（YYYY-MM-DD）")
-    return parser.parse_args()
+    start = args.start or config["backtest"]["start_date"]
+    end = args.end or config["backtest"]["end_date"]
 
-
-def show_stock(ticker, market, start_date, end_date):
-    if market == "us":
+    if args.market == "us":
         get_price = get_us_price
         get_financials = get_us_financials
     else:
@@ -28,10 +24,10 @@ def show_stock(ticker, market, start_date, end_date):
 
     # 股价数据
     print("=" * 60)
-    price = get_price(ticker, start_date, end_date)
+    price = get_price(args.ticker, start, end)
     if not price.empty:
-        name_label = f"{market.upper()} - {ticker}"
-        print(f"{name_label}  股价数据（{start_date} ~ {end_date}）")
+        name_label = f"{args.market.upper()} - {args.ticker}"
+        print(f"{name_label}  股价数据（{start} ~ {end}）")
         print("=" * 60)
         print(f"\n最近 10 笔:")
         print(price.tail(10).to_string(index=False))
@@ -46,14 +42,40 @@ def show_stock(ticker, market, start_date, end_date):
 
     # 基本面数据
     print(f"\n基本面数据:")
-    financials = get_financials(ticker)
+    financials = get_financials(args.ticker)
     for key, value in financials.items():
         print(f"  {key}: {value}")
 
 
+def cmd_screen(args):
+    """篩選命令。"""
+    config = load_config()
+    screen(args.market, config)
+
+
 def main():
-    args = parse_args()
-    show_stock(args.ticker, args.market, args.start, args.end)
+    parser = argparse.ArgumentParser(description="Alpha Finder - 股票分析工具")
+    subparsers = parser.add_subparsers(dest="command", help="可用命令")
+
+    # show 子命令
+    show_parser = subparsers.add_parser("show", help="查詢個股數據")
+    show_parser.add_argument("--ticker", required=True, help="股票代碼（例如 AAPL、2330）")
+    show_parser.add_argument("--market", choices=["us", "tw"], required=True, help="市場：us 或 tw")
+    show_parser.add_argument("--start", default=None, help="開始日期（YYYY-MM-DD）")
+    show_parser.add_argument("--end", default=None, help="結束日期（YYYY-MM-DD）")
+
+    # screen 子命令
+    screen_parser = subparsers.add_parser("screen", help="基本面篩選")
+    screen_parser.add_argument("--market", choices=["us", "tw"], required=True, help="市場：us 或 tw")
+
+    args = parser.parse_args()
+
+    if args.command == "show":
+        cmd_show(args)
+    elif args.command == "screen":
+        cmd_screen(args)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
